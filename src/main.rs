@@ -1,3 +1,13 @@
+mod sdl;
+mod cpu;
+
+use sdl::events::GBButton;
+
 fn main() {
-    println!("Hello, world!");
+    let mut handles = sdl::SdlHandles::new();
+    
+    loop {
+        handles.events.update_events();
+        handles.canvas.update();
+    }
 }

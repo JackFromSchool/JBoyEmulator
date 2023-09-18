@@ -22,20 +22,51 @@ impl RegisterPair {
         self.right = (new & 0xFF) as u8;
     }
 
+    pub fn is_zero_high(&self) -> bool {
+        (self.right | 0b10000000) == self.right 
+    }
+    
+    pub fn is_subtract_high(&self) -> bool {
+        (self.right | 0b01000000) == self.right 
+    }
+
+    pub fn is_hcarry_high(&self) -> bool {
+        (self.right | 0b00100000) == self.right 
+    }
+
+    pub fn is_carry_high(&self) -> bool {
+        (self.right | 0b00010000) == self.right 
+    }
+
     pub fn flip_zero_flag(&mut self) {
-        self.right ^= 0b1000000;
+        self.right ^= 0b10000000;
     }
     
     pub fn flip_subtract_flag(&mut self) {
-        self.right ^= 0b0100000;
+        self.right ^= 0b01000000;
     }
 
     pub fn flip_hcarry_flag(&mut self) {
-        self.right ^= 0b0010000;
+        self.right ^= 0b00100000;
     }
 
     pub fn flip_carry_flag(&mut self) {
-        self.right ^= 0b0001000;
+        self.right ^= 0b00010000;
+    }
+
+    pub fn flip_flags_down(&mut self) {
+        if self.is_zero_high() {
+            self.flip_zero_flag()
+        }
+        if self.is_carry_high() {
+            self.flip_carry_flag()
+        }
+        if self.is_hcarry_high() {
+            self.flip_hcarry_flag()
+        }
+        if self.is_subtract_high() {
+            self.flip_subtract_flag()
+        }
     }
 
 }

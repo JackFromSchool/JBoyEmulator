@@ -1,5 +1,6 @@
 mod sdl;
 mod cpu;
+mod util;
 
 use sdl::events::GBButton;
 use self::cpu::memory;

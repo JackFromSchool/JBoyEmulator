@@ -3,6 +3,7 @@ pub mod register;
 
 use self::memory::Memory;
 use self::register::Registers;
+use crate::util::BitGrabber;
 
 enum RegCode {
     A,
@@ -191,6 +192,7 @@ impl Cpu {
             self.registers.af.flip_carry_flag();
         }
         if carry_end_high && !self.registers.af.is_carry_high() {
+            self.registers.af.flip_flags_down();
             self.registers.af.flip_carry_flag();
         }
     }
@@ -204,9 +206,12 @@ impl Cpu {
         let carry_end_high = (self.registers.af.left | 0b10000000) == self.registers.af.left;
         let _ = self.registers.af.left <= 1;
         if carry_end_high && !self.registers.af.is_carry_high() {
+            self.registers.af.flip_flags_down();
             self.registers.af.flip_carry_flag();
         }
         if carry_end_high {
+            self.registers.af.flip_flags_down();
+            self.registers.af.flip_carry_flag();
             self.registers.af.left += 1;
         }
     }
@@ -220,9 +225,10 @@ impl Cpu {
         let _ = self.registers.af.left >= 1;
         if self.registers.af.is_carry_high() {
             self.registers.af.left += 0b10000000;
-            self.registers.af.flip_carry_flag();
+            self.registers.af.flip_flags_down();
         }
         if carry_end_high && !self.registers.af.is_carry_high() {
+            self.registers.af.flip_flags_down();
             self.registers.af.flip_carry_flag();
         }
     }
@@ -236,9 +242,12 @@ impl Cpu {
         let carry_end_high = (self.registers.af.left | 1) == self.registers.af.left;
         let _ = self.registers.af.left >= 1;
         if carry_end_high && !self.registers.af.is_carry_high() {
+            self.registers.af.flip_flags_down();
             self.registers.af.flip_carry_flag();
         }
         if carry_end_high {
+            self.registers.af.flip_flags_down();
+            self.registers.af.flip_carry_flag();
             self.registers.af.left += 0b10000000;
         }
     }
@@ -248,7 +257,10 @@ impl Cpu {
      *  Adds the register value to A
      */
     pub fn add8(&mut self, source: RegCode) {
-        self.registers.af.left += match source {
+        self.registers.af.flip_flags_down();
+
+        let target_num = self.registers.af.left;
+        let source_num = match source {
             RegCode::A => self.registers.af.left,
             RegCode::B => self.registers.bc.left,
             RegCode::C => self.registers.bc.right,
@@ -259,12 +271,59 @@ impl Cpu {
             RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
             RegCode::Const8(i) => i,
             _ => panic!("Invalid RegCode used for add instruction"),
+        };
+
+        if target_num.nth_bit_as_bool(3) && source_num.nth_bit_as_bool(3) {
+            self.registers.af.flip_hcarry_flag();
+        }
+
+        if target_num.nth_bit_as_bool(7) && target_num.nth_bit_as_bool(7) {
+            self.registers.af.flip_carry_flag();
+        }
+
+        self.registers.af.left += source_num;
+        if self.registers.af.left == 0 {
+            self.registers.af.flip_zero_flag();
         }
     }
 
     /*
-     *  ADD instruction for u16s
-     *  Adds the source value to target
+     *  ADD instruction for u16
+     *  Adds the source value to hl register
      */
+    pub fn add16(&mut self, source: RegCode) {
+        if self.registers.af.is_zero_high() {
+            self.registers.af.flip_flags_down();
+            self.registers.af.flip_zero_flag();
+        } else {
+            self.registers.af.flip_flags_down();
+        }
+
+        let target_num = self.registers.hl.take_as_one();
+        let source_num = match source {
+            RegCode::BC => self.registers.bc.take_as_one(),
+            RegCode::DE => self.registers.de.take_as_one(),
+            RegCode::HL => self.registers.hl.take_as_one(),
+            RegCode::SP => self.registers.sp,
+            _ => panic!("Invalid RegCode used for add instruction"),
+        };
+
+        if target_num.nth_bit_as_bool(11) && source_num.nth_bit_as_bool(11) {
+            self.registers.af.flip_hcarry_flag();
+        }
+
+        if target_num.nth_bit_as_bool(15) && target_num.nth_bit_as_bool(15) {
+            self.registers.af.flip_carry_flag();
+        }
+
+        self.registers.hl.change_as_one(self.registers.hl.take_as_one() + source_num);
+    }
+    
+    /*
+     *  ADD instruction for the sp
+     */
+    pub fn add_sp(&mut self, val: i8) {
+        
+    }
 
 }

@@ -320,10 +320,126 @@ impl Cpu {
     }
     
     /*
-     *  ADD instruction for the sp
+     *  ADD instruction for the sp register
+     *  Takes val and adds it to sp
      */
     pub fn add_sp(&mut self, val: i8) {
-        
+        self.registers.af.flip_flags_down();
+        if val.is_negative() {
+            if self.registers.sp.nth_bit_as_bool(3) && self.registers.sp.nth_bit_as_bool(3) {
+                self.registers.af.flip_hcarry_flag();
+            }
+            if self.registers.sp.nth_bit_as_bool(3) && self.registers.sp.nth_bit_as_bool(3) {
+                self.registers.af.flip_carry_flag();
+            }
+        }
+        self.registers.sp = (self.registers.sp as i16 + val as i16) as u16;
+    }
+    
+    /*
+     *  SUB instruction
+     *  Subtracts the source value from register A
+     */
+    pub fn sub(&mut self, source: RegCode) {
+        self.registers.af.flip_flags_down();
+        self.registers.af.flip_subtract_flag();
+        let source_val = match source {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            RegCode::Const8(i) => i,
+            _ => panic!("Invalid Regcode used for subtraction")
+        };
+        let a_val = self.registers.af.left;
+        if a_val < source_val {
+            self.registers.af.flip_carry_flag();
+        }
+        if ((a_val & 0xF0) - (source_val & 0xF0) & 0x10) == 0x10 {
+            self.registers.af.flip_hcarry_flag();
+        }
+        if a_val - source_val == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+
+        self.registers.af.left -= source_val;
+    }
+    
+    /*
+     *  AND instruction
+     *  Ands the a register by the source value
+     */
+    pub fn and(&mut self, source: RegCode) {
+        self.registers.af.flip_flags_down();
+        self.registers.af.flip_hcarry_flag();
+        self.registers.af.left &= match source {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            RegCode::Const8(i) => i,
+            _ => panic!("Invalid Regcode for and")
+        };
+
+        if self.registers.af.left == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+    }
+    
+    /*
+     *  OR instruction
+     *  Or's the a register by the source val
+     */
+    pub fn or(&mut self, source: RegCode) {
+        self.registers.af.flip_flags_down();
+        self.registers.af.left |= match source {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            RegCode::Const8(i) => i,
+            _ => panic!("Invalid Regcode for or")
+        };
+
+        if self.registers.af.left == 0 {
+            self.registers.af.flip_zero_flag();
+        }
     }
 
+    /*
+     *  XOR instruction
+     *  Xor's the a register by the source val
+     */
+    pub fn xor(&mut self, source: RegCode) {
+        self.registers.af.flip_flags_down();
+        self.registers.af.left ^= match source {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            RegCode::Const8(i) => i,
+            _ => panic!("Invalid Regcode for xor")
+        };
+
+        if self.registers.af.left == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+    }
+    
 }

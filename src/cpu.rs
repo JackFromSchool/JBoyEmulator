@@ -17,6 +17,7 @@ enum RegCode {
     DE,
     HL,
     SP,
+    AF,
     Const8(u8),
     Const16(u16)
 }
@@ -32,15 +33,46 @@ pub enum CondCode {
 struct Cpu {
     memory: Memory,
     registers: Registers,
+    interupts: bool,
+    halted: bool,
 }
 
 impl Cpu {
 
     pub fn new() -> Self {
+        let mut registers = Registers::new();
+        registers.sp = 0xFFFF;
+
         Self {
             memory: Memory::new(),
-            registers: Registers::new(),
+            registers,
+            interupts: true,
+            halted: false,
         }
+    }
+    
+    /*
+     *  HALT Instruction
+     *  Halts cpu until an interupt
+     */
+    pub fn halt(&mut self) {
+        self.halted = true;
+    }
+    
+    /*
+     *  EI Instruction
+     *  Enables cpu interupts
+     */
+    pub fn ei(&mut self) {
+        self.interupts = true;
+    }
+    
+    /*
+     *  DI Instruction
+     *  Disables cpu interupts
+     */
+    pub fn di(&mut self) {
+        self.interupts = false;
     }
     
     /*  
@@ -441,5 +473,127 @@ impl Cpu {
             self.registers.af.flip_zero_flag();
         }
     }
+
+    /*
+     *  ADC instruction
+     *  Adds the source register value to a with the carry flag
+     */
+    pub fn addc(&mut self, source: RegCode) {
+        let mut source_num = 0;
+        if self.registers.af.is_carry_high() {
+            source_num = 1;
+        }
+        self.registers.af.flip_flags_down();
+
+        let target_num = self.registers.af.left;
+        source_num += match source {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            RegCode::Const8(i) => i,
+            _ => panic!("Invalid RegCode used for add instruction"),
+        };
+
+        if target_num.nth_bit_as_bool(3) && source_num.nth_bit_as_bool(3) {
+            self.registers.af.flip_hcarry_flag();
+        }
+
+        if target_num.nth_bit_as_bool(7) && target_num.nth_bit_as_bool(7) {
+            self.registers.af.flip_carry_flag();
+        }
+
+        self.registers.af.left += source_num;
+        if self.registers.af.left == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+    }
     
+    /*
+     *  SBC instruction
+     *  Subtracts the register value plus the carry from a
+     */
+    pub fn subc(&mut self, source: RegCode) {
+        let mut source_val = 0;
+        if self.registers.af.is_carry_high() {
+            source_val = 1;
+        }
+        self.registers.af.flip_flags_down();
+        self.registers.af.flip_subtract_flag();
+        source_val += match source {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            RegCode::Const8(i) => i,
+            _ => panic!("Invalid Regcode used for subtraction")
+        };
+        let a_val = self.registers.af.left;
+        if a_val < source_val {
+            self.registers.af.flip_carry_flag();
+        }
+        if ((a_val & 0xF0) - (source_val & 0xF0) & 0x10) == 0x10 {
+            self.registers.af.flip_hcarry_flag();
+        }
+        if a_val - source_val == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+
+        self.registers.af.left -= source_val;
+    }
+    
+    /*
+     *  CP instruction
+     *  Subtracts the register value from a and modifies flags acordingly
+     *  Does not store that value in a afterwards
+     */
+    pub fn cp(&mut self, source: RegCode) {
+        self.registers.af.flip_flags_down();
+        self.registers.af.flip_subtract_flag();
+        let source_val = match source {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            RegCode::Const8(i) => i,
+            _ => panic!("Invalid Regcode used for subtraction")
+        };
+        let a_val = self.registers.af.left;
+        if a_val < source_val {
+            self.registers.af.flip_carry_flag();
+        }
+        if ((a_val & 0xF0) - (source_val & 0xF0) & 0x10) == 0x10 {
+            self.registers.af.flip_hcarry_flag();
+        }
+        if a_val - source_val == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+    }
+
+    pub fn push(&mut self, source: RegCode) {
+        let source_val = match source {
+            RegCode::BC => self.registers.bc.take_as_one(),
+            RegCode::DE => self.registers.de.take_as_one(),
+            RegCode::HL => self.registers.hl.take_as_one(),
+            RegCode::AF => self.registers.af.take_as_one(),
+            _ => panic!("Invalid RegCode for push"),
+        };
+
+        self.decrement16(RegCode::SP);
+        self.memory[self.registers.sp.into()] = ((source_val & 0xFF00) >> 8) as u8;
+        self.decrement16(RegCode::SP);
+        self.memory[self.registers.sp.into()] = (source_val & 0xFF) as u8;
+    }
 }

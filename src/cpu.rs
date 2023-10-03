@@ -5,7 +5,7 @@ use self::memory::Memory;
 use self::register::Registers;
 use crate::util::BitGrabber;
 
-enum RegCode {
+pub enum RegCode {
     A,
     B,
     C,
@@ -30,9 +30,9 @@ pub enum CondCode {
     Always,
 }
 
-struct Cpu {
-    memory: Memory,
-    registers: Registers,
+pub struct Cpu {
+    pub memory: Memory,
+    pub registers: Registers,
     interupts: bool,
     halted: bool,
 }
@@ -128,8 +128,8 @@ impl Cpu {
             RegCode::HL => self.registers.hl.change_as_one(val),
             RegCode::SP => self.registers.sp = val,
             RegCode::Const16(i) => {
-                self.memory[i as usize] = ((val & 0xFF00) >> 8) as u8;
-                self.memory[i as usize] = (val & 0xFF) as u8;
+                self.memory[i as usize] = ((val & 0xF0) >> 4) as u8;
+                self.memory[(i+1) as usize] = (val & 0xF) as u8;
             },
             _ => panic!("Invalid RegCode used as target for load16"),
         };
@@ -155,10 +155,10 @@ impl Cpu {
 
     pub fn increment16(&mut self, target: RegCode) {
         match target {
-            RegCode::BC => self.registers.bc.change_as_one(self.registers.bc.take_as_one() + 1),
-            RegCode::DE => self.registers.de.change_as_one(self.registers.de.take_as_one() + 1),
-            RegCode::HL => self.registers.hl.change_as_one(self.registers.hl.take_as_one() + 1),
-            RegCode::SP => self.registers.sp += 1,
+            RegCode::BC => self.registers.bc.change_as_one(self.registers.bc.take_as_one().wrapping_add(1)),
+            RegCode::DE => self.registers.de.change_as_one(self.registers.de.take_as_one().wrapping_add(1)),
+            RegCode::HL => self.registers.hl.change_as_one(self.registers.hl.take_as_one().wrapping_add(1)),
+            RegCode::SP => self.registers.sp = self.registers.sp.wrapping_add(1),
             _ => panic!("Invalid RegCode used as target for increment16")
         }
     }
@@ -169,26 +169,26 @@ impl Cpu {
      */
     pub fn decrement8(&mut self, target: RegCode) {
         match target {
-            RegCode::A => self.registers.af.left -= 1,
-            RegCode::B => self.registers.bc.left -= 1,
-            RegCode::C => self.registers.bc.right -= 1,
-            RegCode::D => self.registers.de.left -= 1,
-            RegCode::E => self.registers.de.right -= 1,
-            RegCode::H => self.registers.hl.left -= 1,
-            RegCode::L => self.registers.hl.right -= 1,
-            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] -= 1,
+            RegCode::A => self.registers.af.left = self.registers.af.left.wrapping_sub(1),
+            RegCode::B => self.registers.bc.left = self.registers.bc.left.wrapping_sub(1),
+            RegCode::C => self.registers.bc.right = self.registers.bc.right.wrapping_sub(1),
+            RegCode::D => self.registers.de.left = self.registers.de.left.wrapping_sub(1),
+            RegCode::E => self.registers.de.right = self.registers.de.right.wrapping_sub(1),
+            RegCode::H => self.registers.hl.left = self.registers.hl.left.wrapping_sub(1),
+            RegCode::L => self.registers.hl.right = self.registers.hl.right.wrapping_sub(1),
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = self.memory[self.registers.hl.take_as_one().into()].wrapping_sub(1),
             _ => panic!("Invalid RegCode used as target for increment8"),
-        }
+        };
     }
 
     pub fn decrement16(&mut self, target: RegCode) {
         match target {
-            RegCode::BC => self.registers.bc.change_as_one(self.registers.bc.take_as_one() - 1),
-            RegCode::DE => self.registers.de.change_as_one(self.registers.de.take_as_one() - 1),
-            RegCode::HL => self.registers.hl.change_as_one(self.registers.hl.take_as_one() - 1),
-            RegCode::SP => self.registers.sp -= 1,
+            RegCode::BC => self.registers.bc.change_as_one(self.registers.bc.take_as_one().wrapping_sub(1)),
+            RegCode::DE => self.registers.de.change_as_one(self.registers.de.take_as_one().wrapping_sub(1)),
+            RegCode::HL => self.registers.hl.change_as_one(self.registers.hl.take_as_one().wrapping_sub(1)),
+            RegCode::SP => self.registers.sp = self.registers.sp.wrapping_sub(1),
             _ => panic!("Invalid RegCode used as target for increment16")
-        }
+        };
     }
 
     /*
@@ -218,7 +218,7 @@ impl Cpu {
      */
     pub fn rotate_left_carry_a(&mut self) {
         let carry_end_high = (self.registers.af.left | 0b10000000) == self.registers.af.left;
-        let _ = self.registers.af.left <= 1;
+        let _ = self.registers.af.left <<= 1;
         if self.registers.af.is_carry_high() {
             self.registers.af.left += 1;
             self.registers.af.flip_carry_flag();
@@ -236,7 +236,7 @@ impl Cpu {
      */
     pub fn rotate_left_a(&mut self) {
         let carry_end_high = (self.registers.af.left | 0b10000000) == self.registers.af.left;
-        let _ = self.registers.af.left <= 1;
+        let _ = self.registers.af.left <<= 1;
         if carry_end_high && !self.registers.af.is_carry_high() {
             self.registers.af.flip_flags_down();
             self.registers.af.flip_carry_flag();
@@ -254,7 +254,7 @@ impl Cpu {
      */
     pub fn rotate_right_carry_a(&mut self) {
         let carry_end_high = (self.registers.af.left | 1) == self.registers.af.left;
-        let _ = self.registers.af.left >= 1;
+        let _ = self.registers.af.left >>= 1;
         if self.registers.af.is_carry_high() {
             self.registers.af.left += 0b10000000;
             self.registers.af.flip_flags_down();
@@ -272,7 +272,7 @@ impl Cpu {
      */
     pub fn rotate_right_a(&mut self) {
         let carry_end_high = (self.registers.af.left | 1) == self.registers.af.left;
-        let _ = self.registers.af.left >= 1;
+        let _ = self.registers.af.left >>= 1;
         if carry_end_high && !self.registers.af.is_carry_high() {
             self.registers.af.flip_flags_down();
             self.registers.af.flip_carry_flag();
@@ -313,7 +313,7 @@ impl Cpu {
             self.registers.af.flip_carry_flag();
         }
 
-        self.registers.af.left += source_num;
+        self.registers.af.left = self.registers.af.left.wrapping_add(source_num);
         if self.registers.af.left == 0 {
             self.registers.af.flip_zero_flag();
         }
@@ -348,7 +348,7 @@ impl Cpu {
             self.registers.af.flip_carry_flag();
         }
 
-        self.registers.hl.change_as_one(self.registers.hl.take_as_one() + source_num);
+        self.registers.hl.change_as_one(self.registers.hl.take_as_one().wrapping_add(source_num));
     }
     
     /*
@@ -357,7 +357,7 @@ impl Cpu {
      */
     pub fn add_sp(&mut self, val: i8) {
         self.registers.af.flip_flags_down();
-        if val.is_negative() {
+        if !val.is_negative() {
             if self.registers.sp.nth_bit_as_bool(3) && self.registers.sp.nth_bit_as_bool(3) {
                 self.registers.af.flip_hcarry_flag();
             }
@@ -365,7 +365,7 @@ impl Cpu {
                 self.registers.af.flip_carry_flag();
             }
         }
-        self.registers.sp = (self.registers.sp as i16 + val as i16) as u16;
+        self.registers.sp = ((self.registers.sp as i16).wrapping_add(val as i16)) as u16;
     }
     
     /*
@@ -391,14 +391,14 @@ impl Cpu {
         if a_val < source_val {
             self.registers.af.flip_carry_flag();
         }
-        if ((a_val & 0xF0) - (source_val & 0xF0) & 0x10) == 0x10 {
+        if ((a_val & 0xF0).wrapping_sub((source_val & 0xF0) & 0x10)) == 0x10 {
             self.registers.af.flip_hcarry_flag();
         }
-        if a_val - source_val == 0 {
+        if a_val.wrapping_sub(source_val) == 0 {
             self.registers.af.flip_zero_flag();
         }
 
-        self.registers.af.left -= source_val;
+        self.registers.af.left = self.registers.af.left.wrapping_sub(source_val);
     }
     
     /*
@@ -479,14 +479,14 @@ impl Cpu {
      *  Adds the source register value to a with the carry flag
      */
     pub fn addc(&mut self, source: RegCode) {
-        let mut source_num = 0;
+        let mut source_num: u8 = 0;
         if self.registers.af.is_carry_high() {
             source_num = 1;
         }
         self.registers.af.flip_flags_down();
 
         let target_num = self.registers.af.left;
-        source_num += match source {
+        source_num = source_num.wrapping_add(match source {
             RegCode::A => self.registers.af.left,
             RegCode::B => self.registers.bc.left,
             RegCode::C => self.registers.bc.right,
@@ -497,7 +497,7 @@ impl Cpu {
             RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
             RegCode::Const8(i) => i,
             _ => panic!("Invalid RegCode used for add instruction"),
-        };
+        });
 
         if target_num.nth_bit_as_bool(3) && source_num.nth_bit_as_bool(3) {
             self.registers.af.flip_hcarry_flag();
@@ -507,7 +507,7 @@ impl Cpu {
             self.registers.af.flip_carry_flag();
         }
 
-        self.registers.af.left += source_num;
+        self.registers.af.left = self.registers.af.left.wrapping_add(source_num);
         if self.registers.af.left == 0 {
             self.registers.af.flip_zero_flag();
         }
@@ -518,13 +518,13 @@ impl Cpu {
      *  Subtracts the register value plus the carry from a
      */
     pub fn subc(&mut self, source: RegCode) {
-        let mut source_val = 0;
+        let mut source_val: u8 = 0;
         if self.registers.af.is_carry_high() {
             source_val = 1;
         }
         self.registers.af.flip_flags_down();
         self.registers.af.flip_subtract_flag();
-        source_val += match source {
+        source_val = source_val.wrapping_add(match source {
             RegCode::A => self.registers.af.left,
             RegCode::B => self.registers.bc.left,
             RegCode::C => self.registers.bc.right,
@@ -535,19 +535,19 @@ impl Cpu {
             RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
             RegCode::Const8(i) => i,
             _ => panic!("Invalid Regcode used for subtraction")
-        };
+        });
         let a_val = self.registers.af.left;
         if a_val < source_val {
             self.registers.af.flip_carry_flag();
         }
-        if ((a_val & 0xF0) - (source_val & 0xF0) & 0x10) == 0x10 {
+        if (a_val & 0xF0).wrapping_sub((source_val & 0xF0) & 0x10) == 0x10 {
             self.registers.af.flip_hcarry_flag();
         }
-        if a_val - source_val == 0 {
+        if a_val.wrapping_sub(source_val) == 0 {
             self.registers.af.flip_zero_flag();
         }
 
-        self.registers.af.left -= source_val;
+        self.registers.af.left = self.registers.af.left.wrapping_sub(source_val);
     }
     
     /*
@@ -574,10 +574,10 @@ impl Cpu {
         if a_val < source_val {
             self.registers.af.flip_carry_flag();
         }
-        if ((a_val & 0xF0) - (source_val & 0xF0) & 0x10) == 0x10 {
+        if (a_val & 0xF0).wrapping_sub((source_val & 0xF0) & 0x10) == 0x10 {
             self.registers.af.flip_hcarry_flag();
         }
-        if a_val - source_val == 0 {
+        if a_val.wrapping_sub(source_val) == 0 {
             self.registers.af.flip_zero_flag();
         }
     }
@@ -590,10 +590,26 @@ impl Cpu {
             RegCode::AF => self.registers.af.take_as_one(),
             _ => panic!("Invalid RegCode for push"),
         };
-
+        
         self.decrement16(RegCode::SP);
         self.memory[self.registers.sp.into()] = ((source_val & 0xFF00) >> 8) as u8;
         self.decrement16(RegCode::SP);
         self.memory[self.registers.sp.into()] = (source_val & 0xFF) as u8;
     }
+
+    pub fn pop(&mut self, target: RegCode) {
+        let mut val: u16 = self.memory[self.registers.sp.into()] as u16;
+        self.increment16(RegCode::SP);
+        val += (self.memory[self.registers.sp.into()] as u16) << 8;
+        self.increment16(RegCode::SP);
+
+        match target {
+            RegCode::BC => self.registers.bc.change_as_one(val),
+            RegCode::DE => self.registers.de.change_as_one(val),
+            RegCode::HL => self.registers.hl.change_as_one(val),
+            RegCode::AF => self.registers.af.change_as_one(val),
+            _ => panic!("Invalid RegCode for push"),
+        }
+    }
+
 }

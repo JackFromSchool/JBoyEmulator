@@ -50,6 +50,25 @@ impl Cpu {
             halted: false,
         }
     }
+
+    pub fn current_pc_byte(&self) -> u8 {
+        self.memory[self.registers.pc.into()]
+    }
+
+    pub fn increment_pc(&mut self) {
+        self.registers.pc += 1;
+    }
+
+    pub fn decrement_pc(&mut self) {
+        self.registers.pc -= 1;
+    }
+
+    pub fn get_16_pc(&mut self) -> u16 {
+        let mut num: u16 = (self.current_pc_byte() as u16) << 8;
+        self.increment_pc();
+        num += self.current_pc_byte() as u16;
+        num
+    }
     
     /*
      *  HALT Instruction

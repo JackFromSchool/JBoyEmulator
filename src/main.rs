@@ -4,14 +4,27 @@ mod util;
 mod emulation;
 
 use sdl::events::GBButton;
-use self::cpu::memory;
+use self::cpu::Cpu;
+use self::emulation::{fetch, run};
+use std::io::{BufReader, Read};
+use std::fs::File;
 
 fn main() {
+    let file = File::open("test_stop_only.rom").unwrap();
+    let mut reader = BufReader::new(file);
+    let mut bytes = Vec::new();
+
+    let _ = reader.read_to_end(&mut bytes);
+
     let mut handles = sdl::SdlHandles::new();
     
     loop {
         handles.events.update_events();
         handles.canvas.update();
+        
+        let mut cpu = Cpu::new_with_rom(&bytes);
+        let instruction = fetch(&mut cpu);
+        run(&mut cpu, instruction);
     }
 }
 

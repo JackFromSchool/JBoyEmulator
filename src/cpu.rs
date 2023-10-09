@@ -18,6 +18,7 @@ pub enum RegCode {
     HL,
     SP,
     AF,
+    PC, //Internal use only
     Const8(u8),
     Const16(u16)
 }
@@ -38,6 +39,25 @@ pub struct Cpu {
 }
 
 impl Cpu {
+
+    pub fn new_with_rom(rom: &Vec<u8>) -> Self {
+        let mut registers = Registers::new();
+        registers.sp = 0xFFFF;
+        registers.pc = 0x100;
+
+        let mut memory = Memory::new();
+
+        for (i, byte) in rom.iter().enumerate() {
+            memory[0x100 + i] = *byte;
+        }
+
+        Self {
+            memory,
+            registers,
+            interupts: true,
+            halted: false,
+        }
+    }
 
     pub fn new() -> Self {
         let mut registers = Registers::new();
@@ -141,7 +161,7 @@ impl Cpu {
             _ => panic!("Invalid RegCode used as target for load16"),
         };
 
-        let val = match target {
+        match target {
             RegCode::BC => self.registers.bc.change_as_one(val),
             RegCode::DE => self.registers.de.change_as_one(val),
             RegCode::HL => self.registers.hl.change_as_one(val),
@@ -152,6 +172,22 @@ impl Cpu {
             },
             _ => panic!("Invalid RegCode used as target for load16"),
         };
+    }
+
+    pub fn load_weird(&mut self, target: RegCode, source: RegCode) {
+        let val = match source {
+            RegCode::Const16(i) => self.memory[i as usize],
+            RegCode::Const8(i) => self.memory[0xFF00 + i as usize],
+            RegCode::A => self.memory[self.registers.af.left.into()],
+            _ => panic!("Invalid RegCode used as source for load weird")
+        };
+
+        match target {
+            RegCode::Const16(i) => self.memory[i as usize] = val,
+            RegCode::Const8(i) => self.memory[0xFF00 + i as usize] = val,
+            RegCode::A => self.registers.af.left = val,
+            _ => panic!("Invalid RegCode used as target for load weird"),
+        }
     }
     
     /*
@@ -607,6 +643,7 @@ impl Cpu {
             RegCode::DE => self.registers.de.take_as_one(),
             RegCode::HL => self.registers.hl.take_as_one(),
             RegCode::AF => self.registers.af.take_as_one(),
+            RegCode::PC => self.registers.pc,
             _ => panic!("Invalid RegCode for push"),
         };
         
@@ -627,8 +664,54 @@ impl Cpu {
             RegCode::DE => self.registers.de.change_as_one(val),
             RegCode::HL => self.registers.hl.change_as_one(val),
             RegCode::AF => self.registers.af.change_as_one(val),
+            RegCode::PC => self.registers.pc = val,
             _ => panic!("Invalid RegCode for push"),
         }
+    }
+
+    pub fn ret(&mut self, cond: CondCode) {
+        if match cond {
+            CondCode::Z => self.registers.af.is_zero_high(),
+            CondCode::NZ => !self.registers.af.is_zero_high(),
+            CondCode::C => self.registers.af.is_carry_high(),
+            CondCode::NC => !self.registers.af.is_carry_high(),
+            CondCode::Always => true,
+        } {
+            self.pop(RegCode::PC);
+        }
+    }
+
+    pub fn jump(&mut self, cond: CondCode, to: u16) {
+        if match cond {
+            CondCode::Z => self.registers.af.is_zero_high(),
+            CondCode::NZ => !self.registers.af.is_zero_high(),
+            CondCode::C => self.registers.af.is_carry_high(),
+            CondCode::NC => !self.registers.af.is_carry_high(),
+            CondCode::Always => true,
+        } {
+            self.registers.pc = to;
+        }
+    }
+
+    pub fn call(&mut self, cond:CondCode, to: u16) {
+        if match cond {
+            CondCode::Z => self.registers.af.is_zero_high(),
+            CondCode::NZ => !self.registers.af.is_zero_high(),
+            CondCode::C => self.registers.af.is_carry_high(),
+            CondCode::NC => !self.registers.af.is_carry_high(),
+            CondCode::Always => true,
+        } {
+            self.push(RegCode::PC);
+            self.registers.pc = to;
+        }
+    }
+
+    pub fn restart(&mut self, to: u16) {
+        if to != 0x10 || to != 0x20 || to != 0x30 || to != 0x08 || to != 0x18 || to != 0x28 || to != 0x38 || to != 0 {
+            panic!("RST called with an invalid value: {to}");
+        }
+        self.push(RegCode::PC);
+        self.registers.pc = to;
     }
 
 }

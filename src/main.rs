@@ -2,6 +2,7 @@ mod sdl;
 mod cpu;
 mod util;
 mod emulation;
+mod graphics;
 
 use sdl::events::GBButton;
 use self::cpu::Cpu;
@@ -10,19 +11,19 @@ use std::io::{BufReader, Read};
 use std::fs::File;
 
 fn main() {
-    let file = File::open("test_stop_only.rom").unwrap();
+    let file = File::open("drMario.gb").unwrap();
     let mut reader = BufReader::new(file);
     let mut bytes = Vec::new();
 
     let _ = reader.read_to_end(&mut bytes);
 
     let mut handles = sdl::SdlHandles::new();
+    let mut cpu = Cpu::new_with_rom(&bytes);
     
     loop {
         handles.events.update_events();
         handles.canvas.update();
         
-        let mut cpu = Cpu::new_with_rom(&bytes);
         let instruction = fetch(&mut cpu);
         run(&mut cpu, instruction);
     }

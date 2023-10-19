@@ -14,7 +14,7 @@ pub enum Pixel {
 
 pub struct CanvasUtils {
     handle: sdl2::render::Canvas<Window>,
-    pixel_data: [[Pixel; 160]; 144],
+    pub pixel_data: [[Pixel; 160]; 144],
 }
 
 impl CanvasUtils {

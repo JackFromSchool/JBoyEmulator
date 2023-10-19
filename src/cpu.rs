@@ -82,11 +82,11 @@ impl Cpu {
     pub fn decrement_pc(&mut self) {
         self.registers.pc -= 1;
     }
-
+    
     pub fn get_16_pc(&mut self) -> u16 {
         let mut num: u16 = (self.current_pc_byte() as u16) << 8;
         self.increment_pc();
-        num += self.current_pc_byte() as u16;
+        num += (self.current_pc_byte() as u16);
         num
     }
     
@@ -690,7 +690,12 @@ impl Cpu {
             CondCode::Always => true,
         } {
             self.registers.pc = to;
+            println!("Jumped to: {}", self.registers.pc);
         }
+    }
+
+    pub fn jump_hl(&mut self) {
+        self.registers.pc = self.registers.hl.take_as_one();
     }
 
     pub fn call(&mut self, cond:CondCode, to: u16) {
@@ -712,6 +717,365 @@ impl Cpu {
         }
         self.push(RegCode::PC);
         self.registers.pc = to;
+    }
+
+    pub fn rotate_left_carry(&mut self, code: RegCode) {
+        self.registers.af.flip_flags_down();
+        
+        let val = match code {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Rotate Left Carry called with invalid RegCode")
+        };
+
+        if val.nth_bit_as_bool(7) {
+            self.registers.af.flip_carry_flag();
+        }
+
+        if val == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+
+        match code {
+            RegCode::A => self.registers.af.left = val.rotate_left(1),
+            RegCode::B => self.registers.bc.left = val.rotate_left(1),
+            RegCode::C => self.registers.bc.right = val.rotate_left(1),
+            RegCode::D => self.registers.de.left = val.rotate_left(1),
+            RegCode::E => self.registers.de.right = val.rotate_left(1),
+            RegCode::H => self.registers.hl.left = val.rotate_left(1),
+            RegCode::L => self.registers.hl.right = val.rotate_left(1),
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = val.rotate_left(1),
+            _ => panic!("Rotate Left Carry called with invalid RegCode")
+        };
+    }
+
+    pub fn rotate_right_carry(&mut self, code: RegCode) {
+        self.registers.af.flip_flags_down();
+        
+        let val = match code {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Rotate Left Carry called with invalid RegCode")
+        };
+
+        if val.nth_bit_as_bool(0) {
+            self.registers.af.flip_carry_flag();
+        }
+
+        if val == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+
+        match code {
+            RegCode::A => self.registers.af.left = val.rotate_right(1),
+            RegCode::B => self.registers.bc.left = val.rotate_right(1),
+            RegCode::C => self.registers.bc.right = val.rotate_right(1),
+            RegCode::D => self.registers.de.left = val.rotate_right(1),
+            RegCode::E => self.registers.de.right = val.rotate_right(1),
+            RegCode::H => self.registers.hl.left = val.rotate_right(1),
+            RegCode::L => self.registers.hl.right = val.rotate_right(1),
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = val.rotate_right(1),
+            _ => panic!("Rotate Left Carry called with invalid RegCode")
+        };
+    }
+
+    pub fn rotate_left(&mut self, code: RegCode) {
+        self.registers.af.flip_flags_down();
+        
+        let mut val = match code {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Rotate Left Carry called with invalid RegCode")
+        };
+
+        if val.nth_bit_as_bool(7) {
+            self.registers.af.flip_carry_flag();
+            val = val.rotate_left(1) ^ 0b00000001;
+        } else {
+            val = val.rotate_left(1);
+        }
+
+        if val == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+
+        match code {
+            RegCode::A => self.registers.af.left = val,
+            RegCode::B => self.registers.bc.left = val,
+            RegCode::C => self.registers.bc.right = val,
+            RegCode::D => self.registers.de.left = val,
+            RegCode::E => self.registers.de.right = val,
+            RegCode::H => self.registers.hl.left = val,
+            RegCode::L => self.registers.hl.right = val,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = val,
+            _ => panic!("Rotate Left Carry called with invalid RegCode")
+        };
+    }
+
+    pub fn rotate_right(&mut self, code: RegCode) {
+        self.registers.af.flip_flags_down();
+        
+        let mut val = match code {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Rotate Left Carry called with invalid RegCode")
+        };
+
+        if val.nth_bit_as_bool(0) {
+            self.registers.af.flip_carry_flag();
+            val = val.rotate_right(1) ^ 0b10000000; 
+        } else {
+            val = val.rotate_right(1);
+        }
+
+        if val == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+
+        match code {
+            RegCode::A => self.registers.af.left = val,
+            RegCode::B => self.registers.bc.left = val,
+            RegCode::C => self.registers.bc.right = val,
+            RegCode::D => self.registers.de.left = val,
+            RegCode::E => self.registers.de.right = val,
+            RegCode::H => self.registers.hl.left = val,
+            RegCode::L => self.registers.hl.right = val,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = val,
+            _ => panic!("Rotate Left Carry called with invalid RegCode")
+        };
+    }
+
+    pub fn shift_left(&mut self, code: RegCode) {
+        self.registers.af.flip_flags_down();
+
+        let mut val = match code {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Left shift called with invalid RegCode")
+        };
+
+        if val.nth_bit_as_bool(7) {
+            self.registers.af.flip_carry_flag();
+        }
+
+        if val << 1 == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+
+        val <<= 1;
+
+        match code {
+            RegCode::A => self.registers.af.left = val,
+            RegCode::B => self.registers.bc.left = val,
+            RegCode::C => self.registers.bc.right = val,
+            RegCode::D => self.registers.de.left = val,
+            RegCode::E => self.registers.de.right = val,
+            RegCode::H => self.registers.hl.left = val,
+            RegCode::L => self.registers.hl.right = val,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = val,
+            _ => panic!("Left shift called with invalid RegCode")
+        };
+    }
+
+    pub fn shift_right_arithmetic(&mut self, code: RegCode) {
+        self.registers.af.flip_flags_down();
+
+        let mut val = match code {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Right arithmetic shift called with invalid RegCode")
+        };
+
+        if val.nth_bit_as_bool(0) {
+            self.registers.af.flip_carry_flag();
+        }
+
+        if val >> 1 == 0 {
+            self.registers.af.flip_zero_flag();
+        }
+
+        val >>= 1;
+
+        match code {
+            RegCode::A => self.registers.af.left = val,
+            RegCode::B => self.registers.bc.left = val,
+            RegCode::C => self.registers.bc.right = val,
+            RegCode::D => self.registers.de.left = val,
+            RegCode::E => self.registers.de.right = val,
+            RegCode::H => self.registers.hl.left = val,
+            RegCode::L => self.registers.hl.right = val,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = val,
+            _ => panic!("Right arithmetic shift called with invalid RegCode")
+        };
+    }
+
+    pub fn shift_right_logical(&mut self, code: RegCode) {
+        self.registers.af.flip_flags_down();
+
+        let mut val = match code {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Right logical shift called with invalid RegCode")
+        };
+
+        if val.nth_bit_as_bool(0) {
+            self.registers.af.flip_carry_flag();
+        }
+
+        if val >> 1 == 0 { // FIX THIS LATER IT WILL PROBABLY BE BROKEN!!!!!!!!!
+            self.registers.af.flip_zero_flag();
+        }
+
+        val >>= 1;
+
+        match code {
+            RegCode::A => self.registers.af.left = val,
+            RegCode::B => self.registers.bc.left = val,
+            RegCode::C => self.registers.bc.right = val,
+            RegCode::D => self.registers.de.left = val,
+            RegCode::E => self.registers.de.right = val,
+            RegCode::H => self.registers.hl.left = val,
+            RegCode::L => self.registers.hl.right = val,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = val,
+            _ => panic!("Right logical shift called with invalid RegCode")
+        };
+    }
+
+    pub fn swap(&mut self, code: RegCode) {
+        self.registers.af.flip_flags_down();
+
+        let mut val = match code {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("swap called with invalid RegCode")
+        };
+
+        if val.swap_bytes() == 0 { 
+            self.registers.af.flip_zero_flag();
+        }
+
+        val = val.swap_bytes();
+
+        match code {
+            RegCode::A => self.registers.af.left = val,
+            RegCode::B => self.registers.bc.left = val,
+            RegCode::C => self.registers.bc.right = val,
+            RegCode::D => self.registers.de.left = val,
+            RegCode::E => self.registers.de.right = val,
+            RegCode::H => self.registers.hl.left = val,
+            RegCode::L => self.registers.hl.right = val,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = val,
+            _ => panic!("Swap called with invalid RegCode")
+        };
+    }
+
+    pub fn bit_check_zero(&mut self, bit: usize, code: RegCode) {
+        if self.registers.af.is_carry_high() {
+            self.registers.af.flip_flags_down();
+            self.registers.af.flip_carry_flag();
+        } else {
+            self.registers.af.flip_flags_down();
+        }
+
+        let to_check = match code {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Invalid RegCode for bit check")
+        };
+
+        if to_check.nth_bit_as_bool(bit) {
+            self.registers.af.flip_zero_flag();
+        }
+    }
+
+    pub fn bit_set(&mut self, bit: usize, code: RegCode) {
+        let to_set = match code {
+            RegCode::A => &mut self.registers.af.left,
+            RegCode::B => &mut self.registers.bc.left,
+            RegCode::C => &mut self.registers.bc.right,
+            RegCode::D => &mut self.registers.de.left,
+            RegCode::E => &mut self.registers.de.right,
+            RegCode::H => &mut self.registers.hl.left,
+            RegCode::L => &mut self.registers.hl.right,
+            RegCode::HL => &mut self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Invalid RegCode for bit check")
+        };
+
+        if !to_set.nth_bit_as_bool(bit) {
+            *to_set |= 2_u8.pow(bit as u32);
+        }
+    }
+
+    pub fn bit_reset(&mut self, bit: usize, code: RegCode) {
+        let to_set = match code {
+            RegCode::A => &mut self.registers.af.left,
+            RegCode::B => &mut self.registers.bc.left,
+            RegCode::C => &mut self.registers.bc.right,
+            RegCode::D => &mut self.registers.de.left,
+            RegCode::E => &mut self.registers.de.right,
+            RegCode::H => &mut self.registers.hl.left,
+            RegCode::L => &mut self.registers.hl.right,
+            RegCode::HL => &mut self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Invalid RegCode for bit check")
+        };
+
+        if to_set.nth_bit_as_bool(bit) {
+            *to_set ^= 2_u8.pow(bit as u32);
+        }
     }
 
 }

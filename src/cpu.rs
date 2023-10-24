@@ -48,7 +48,9 @@ impl Cpu {
         let mut memory = Memory::new();
 
         for (i, byte) in rom.iter().enumerate() {
+            if i+ 0x100 >= 65535 { break; }
             memory[0x100 + i] = *byte;
+            
         }
 
         Self {
@@ -654,6 +656,8 @@ impl Cpu {
     }
 
     pub fn pop(&mut self, target: RegCode) {
+        if self.registers.sp == 0xFFFF { return; }
+
         let mut val: u16 = self.memory[self.registers.sp.into()] as u16;
         self.increment16(RegCode::SP);
         val += (self.memory[self.registers.sp.into()] as u16) << 8;

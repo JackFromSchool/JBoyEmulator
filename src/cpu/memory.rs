@@ -1,12 +1,12 @@
 pub struct Memory {
-    mem: [u8; 0xFFFF]
+    mem: [u8; 0x10000]
 }
 
 impl Memory {
     
     pub fn new() -> Self {
         Self {
-            mem: [0; 0xFFFF],
+            mem: [0; 0x10000],
         }
     }
 

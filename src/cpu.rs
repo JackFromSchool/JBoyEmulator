@@ -23,12 +23,46 @@ pub enum RegCode {
     Const16(u16)
 }
 
+impl std::fmt::Display for RegCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RegCode::A => write!(f, "A"),
+            RegCode::B => write!(f, "B"),
+            RegCode::C => write!(f, "C"),
+            RegCode::D => write!(f, "D"),
+            RegCode::E => write!(f, "E"),
+            RegCode::H => write!(f, "H"),
+            RegCode::L => write!(f, "L"),
+            RegCode::BC => write!(f, "BC"),
+            RegCode::DE => write!(f, "DE"),
+            RegCode::HL => write!(f, "HL"),
+            RegCode::SP => write!(f, "SP"),
+            RegCode::AF => write!(f, "AF"),
+            RegCode::PC => write!(f, "PC"),
+            RegCode::Const8(i) => write!(f, "{:#04x}", i),
+            RegCode::Const16(i) => write!(f, "{:#06x}", i),
+        }
+    }
+}
+
 pub enum CondCode {
     NZ,
     NC,
     Z,
     C,
     Always,
+}
+
+impl std::fmt::Display for CondCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CondCode::Z => write!(f, "Z"),
+            CondCode::C => write!(f, "C"),
+            CondCode::NZ => write!(f, "NZ"),
+            CondCode::NC => write!(f, "NC"),
+            CondCode::Always => write!(f, "Always"),
+        }
+    }
 }
 
 pub struct Cpu {
@@ -40,30 +74,66 @@ pub struct Cpu {
 
 impl Cpu {
 
+    pub fn init_reg(&mut self) {
+        self.registers.sp = 0xFFFE;
+        self.registers.pc = 0x100;
+        self.registers.af.change_as_one(0x01B0);
+        self.registers.bc.change_as_one(0x0013);
+        self.registers.de.change_as_one(0x00D8);
+        self.registers.hl.change_as_one(0x014D);
+        let m_Rom = &mut self.memory;
+        // Code borrowed from codeslinger.co.uk
+        m_Rom[0xFF05] = 0x00 ;
+        m_Rom[0xFF06] = 0x00 ;
+        m_Rom[0xFF07] = 0x00 ;
+        m_Rom[0xFF10] = 0x80 ;
+        m_Rom[0xFF11] = 0xBF ;
+        m_Rom[0xFF12] = 0xF3 ;
+        m_Rom[0xFF14] = 0xBF ;
+        m_Rom[0xFF16] = 0x3F ;
+        m_Rom[0xFF17] = 0x00 ;
+        m_Rom[0xFF19] = 0xBF ;
+        m_Rom[0xFF1A] = 0x7F ;
+        m_Rom[0xFF1B] = 0xFF ;
+        m_Rom[0xFF1C] = 0x9F ;
+        m_Rom[0xFF1E] = 0xBF ;
+        m_Rom[0xFF20] = 0xFF ;
+        m_Rom[0xFF21] = 0x00 ;
+        m_Rom[0xFF22] = 0x00 ;
+        m_Rom[0xFF23] = 0xBF ;
+        m_Rom[0xFF24] = 0x77 ;
+        m_Rom[0xFF25] = 0xF3 ;
+        m_Rom[0xFF26] = 0xF1 ;
+        m_Rom[0xFF40] = 0x91 ;
+        m_Rom[0xFF42] = 0x00 ;
+        m_Rom[0xFF43] = 0x00 ;
+        m_Rom[0xFF45] = 0x00 ;
+        m_Rom[0xFF47] = 0xFC ;
+        m_Rom[0xFF48] = 0xFF ;
+        m_Rom[0xFF49] = 0xFF ;
+        m_Rom[0xFF4A] = 0x00 ;
+        m_Rom[0xFF4B] = 0x00 ;
+        m_Rom[0xFFFF] = 0x00 ;
+    }
+
     pub fn new_with_rom(rom: &Vec<u8>) -> Self {
-        let mut registers = Registers::new();
-        registers.sp = 0xFFFF;
-        registers.pc = 0x100;
-
         let mut memory = Memory::new();
-
-        for (i, byte) in rom.iter().enumerate() {
-            if i+ 0x100 >= 65535 { break; }
-            memory[0x100 + i] = *byte;
-            
+        for (i, val) in rom.iter().enumerate() {
+            memory[i] = *val;
         }
 
-        Self {
+        let mut cpu = Cpu {
             memory,
-            registers,
+            registers: Registers::new(),
             interupts: true,
             halted: false,
-        }
+        };
+        cpu.init_reg();
+        cpu
     }
 
     pub fn new() -> Self {
         let mut registers = Registers::new();
-        registers.sp = 0xFFFF;
 
         Self {
             memory: Memory::new(),
@@ -86,9 +156,9 @@ impl Cpu {
     }
     
     pub fn get_16_pc(&mut self) -> u16 {
-        let mut num: u16 = (self.current_pc_byte() as u16) << 8;
+        let mut num: u16 = (self.current_pc_byte() as u16);
         self.increment_pc();
-        num += (self.current_pc_byte() as u16);
+        num += (self.current_pc_byte() as u16) << 8;
         num
     }
     
@@ -191,21 +261,70 @@ impl Cpu {
             _ => panic!("Invalid RegCode used as target for load weird"),
         }
     }
+
+    pub fn load_inc(&mut self, target: RegCode, source:RegCode) {
+        let val = match source {
+            RegCode::A => self.registers.af.left,
+            RegCode::HL => self.memory[(self.registers.hl.take_as_one() + 1) as usize],
+            _ => panic!("Invalid source code for load_inc"),
+        };
+
+        match target {
+            RegCode::A => self.registers.af.left = val,
+            RegCode::HL => self.memory[(self.registers.hl.take_as_one() + 1) as usize] = val,
+            _ => panic!("Invalid target for load_inc")
+        }
+    }
+
+    pub fn load_dec(&mut self, target: RegCode, source: RegCode) {
+        let val = match source {
+            RegCode::A => self.registers.af.left,
+            RegCode::HL => self.memory[(self.registers.hl.take_as_one() - 1) as usize],
+            _ => panic!("Invalid source code for load_inc"),
+        };
+
+        match target {
+            RegCode::A => self.registers.af.left = val,
+            RegCode::HL => self.memory[(self.registers.hl.take_as_one() - 1) as usize] = val,
+            _ => panic!("Invalid target for load_inc")
+        }
+    }
     
     /*
      *  INC instruction for u8 and u16
      *  target register or the memory it points to is incremented by 1
      */
     pub fn increment8(&mut self, target: RegCode) {
+        if self.registers.af.is_carry_high() {
+            self.registers.af.flip_flags_down();
+            self.registers.af.flip_carry_flag();
+        } else {
+            self.registers.af.flip_flags_down();
+        }
+
+        if match target {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Invalid RegCode for bit check")
+        } == 0b00001111 {
+            self.registers.af.flip_hcarry_flag();
+        }
+
         match target {
-            RegCode::A => self.registers.af.left += 1,
-            RegCode::B => self.registers.bc.left += 1,
-            RegCode::C => self.registers.bc.right += 1,
-            RegCode::D => self.registers.de.left += 1,
-            RegCode::E => self.registers.de.right += 1,
-            RegCode::H => self.registers.hl.left += 1,
-            RegCode::L => self.registers.hl.right += 1,
-            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] += 1,
+            RegCode::A => self.registers.af.left = self.registers.af.left.wrapping_add(1),
+            RegCode::B => self.registers.bc.left = self.registers.bc.left.wrapping_add(1),
+            RegCode::C => self.registers.bc.right = self.registers.bc.right.wrapping_add(1),
+            RegCode::D => self.registers.de.left = self.registers.de.left.wrapping_add(1),
+            RegCode::E => self.registers.de.right = self.registers.de.right.wrapping_add(1),
+            RegCode::H => self.registers.hl.left = self.registers.hl.left.wrapping_add(1),
+            RegCode::L => self.registers.hl.right = self.registers.hl.right.wrapping_add(1),
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()] = self.memory[self.registers.hl.take_as_one().into()].wrapping_add(1),
             _ => panic!("Invalid RegCode used as target for increment8"),
         }
     }
@@ -225,6 +344,28 @@ impl Cpu {
      *  target register or the memory it points to are decremented by 1
      */
     pub fn decrement8(&mut self, target: RegCode) {
+        if self.registers.af.is_carry_high() {
+            self.registers.af.flip_flags_down();
+            self.registers.af.flip_carry_flag();
+        } else {
+            self.registers.af.flip_flags_down();
+        }
+        self.registers.af.flip_subtract_flag();
+
+        if match target {
+            RegCode::A => self.registers.af.left,
+            RegCode::B => self.registers.bc.left,
+            RegCode::C => self.registers.bc.right,
+            RegCode::D => self.registers.de.left,
+            RegCode::E => self.registers.de.right,
+            RegCode::H => self.registers.hl.left,
+            RegCode::L => self.registers.hl.right,
+            RegCode::HL => self.memory[self.registers.hl.take_as_one().into()],
+            _ => panic!("Invalid RegCode for bit check")
+        } & 0b00011111 == 0b00010000 {
+            self.registers.af.flip_hcarry_flag();
+        }
+
         match target {
             RegCode::A => self.registers.af.left = self.registers.af.left.wrapping_sub(1),
             RegCode::B => self.registers.bc.left = self.registers.bc.left.wrapping_sub(1),
@@ -266,6 +407,7 @@ impl Cpu {
 
         if jump {
             self.registers.pc = (self.registers.pc as i16 + jump_by as i16) as u16;
+            println!("Jumped to: {}", self.registers.pc);
         }
     }
     
@@ -716,11 +858,11 @@ impl Cpu {
     }
 
     pub fn restart(&mut self, to: u16) {
-        if to != 0x10 || to != 0x20 || to != 0x30 || to != 0x08 || to != 0x18 || to != 0x28 || to != 0x38 || to != 0 {
-            panic!("RST called with an invalid value: {to}");
-        }
+        //if to != 0x10 || to != 0x20 || to != 0x30 || to != 0x08 || to != 0x18 || to != 0x28 || to != 0x38 || to != 0 {
+        //    panic!("RST called with an invalid value: {:#04x}", to);
+        //}
         self.push(RegCode::PC);
-        self.registers.pc = to;
+        self.jump(CondCode::Always, to);
     }
 
     pub fn rotate_left_carry(&mut self, code: RegCode) {

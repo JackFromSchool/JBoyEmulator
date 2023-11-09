@@ -11,7 +11,7 @@ use std::io::{BufReader, Read};
 use std::fs::File;
 
 fn main() {
-    let file = File::open("cpu_instrs.gb").unwrap();
+    let file = File::open("roms/logo.gb").unwrap();
     let mut reader = BufReader::new(file);
     let mut bytes = Vec::new();
 
@@ -25,9 +25,21 @@ fn main() {
         handles.canvas.update();
         
         let instruction = fetch(&mut cpu);
+
+        println!("{}", instruction);
+        loop {
+            break;
+            handles.events.update_events();
+            if handles.events.is_pressed(crate::GBButton::A) {
+                break;
+            }
+        }
+
         run(&mut cpu, instruction);
     }
 }
+
+
 
 #[cfg(test)]
 mod tests {

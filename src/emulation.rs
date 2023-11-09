@@ -13,6 +13,8 @@ pub enum Instruction {
     LD16(RegCode, RegCode),
     LD8(RegCode, RegCode),
     LDW(RegCode, RegCode),
+    LDD(RegCode, RegCode),
+    LDI(RegCode, RegCode),
     INC16(RegCode),
     INC8(RegCode),
     DEC16(RegCode),
@@ -52,10 +54,176 @@ pub enum Instruction {
     SET(usize, RegCode),
 }
 
+impl std::fmt::Display for Instruction {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Instruction::PLACEHOLDER => {
+                write!(f, "Placeholder Code")
+            },
+            Instruction::NOP => {
+                write!(f, "NOP")
+            },
+            Instruction::STOP => {
+                write!(f, "STOP")
+            },
+            Instruction::HALT => {
+                write!(f, "HALT")
+            },
+            Instruction::DI => {
+                write!(f, "Disable Interrupts")
+            },
+            Instruction::EI => {
+                write!(f, "Enable Interrupts")
+            },
+            Instruction::JR(code, by) => {
+                write!(f, "Relative jump based on {}, and by {:#04x}", code, by)
+            },
+            Instruction::LD16(target, source) => {
+                write!(f, "LD from {}, into {}", source, target)
+            },
+            Instruction::LD8(target, source) => {
+                write!(f, "LD")
+            },
+            Instruction::LDW(target, source) => {
+                write!(f, "LD from {}, into {}", source, target)
+            },
+            Instruction::LDD(target, source) => {
+                write!(f, "LD from {}, into {}", source, target)
+            },
+            Instruction::LDI(target, source) => {
+                write!(f, "LD from {}, into {}", source, target)
+            },
+            Instruction::INC16(code) => {
+                write!(f, "Incrementing {}", code)
+            },
+            Instruction::INC8(code) => {
+                write!(f, "Incrementing {}", code)
+            },
+            Instruction::DEC16(code) => {
+                write!(f, "Decrementing {}", code)
+            },
+            Instruction::DEC8(code) => {
+                write!(f, "Decrementing {}", code)
+            },
+            Instruction::RLCA => {
+                write!(f, "Rotating A left")
+            },
+            Instruction::RLA => {
+                write!(f, "Rotating A left through carry")
+            },
+            Instruction::RRCA => {
+                write!(f, "Rotating A right")
+            },
+            Instruction::RRA => {
+                write!(f, "Rotating A right through carry")
+            },
+            Instruction::ADDSP(i) => {
+                write!(f, "Adding {:#04x} to the stack pointer", i)
+            },
+            Instruction::ADD8(code) => {
+                write!(f, "Adding to a from {}", code)
+            },
+            Instruction::ADD16(code) => {
+                write!(f, "Adding to a from {}", code)
+            },
+            Instruction::SUB(code) => {
+                write!(f, "Subtracting from a by {}", code)
+            },
+            Instruction::AND(code) => {
+                write!(f, "Anding a by {}", code)
+            },
+            Instruction::XOR(code) => {
+                write!(f, "XORing a by {}", code)
+            },
+            Instruction::OR(code) => {
+                write!(f, "ORing a by {}", code)
+            },
+            Instruction::SBC(code) => {
+                write!(f, "Subtracting to a with cary by {}", code)
+            },
+            Instruction::ADC(code) => {
+                write!(f, "Adding to a with carry by {}", code)
+            },
+            Instruction::CP(code) => {
+                write!(f, "Comparing by {}", code)
+            },
+            Instruction::PUSH(code) => {
+                write!(f, "Pushing from {}", code)
+            },
+            Instruction::POP(code) => {
+                write!(f, "Poping into {}", code)
+            },
+            Instruction::RET(code) => {
+                write!(f, "Returning based on {}", code)
+            },
+            Instruction::RETI => {
+                write!(f, "Returning and enabling Interrupts")
+            },
+            Instruction::JP(code, i) => {
+                write!(f, "Jumping based on {}, to {:#06x}", code, i)
+            },
+            Instruction::JPHL => {
+                write!(f, "Jumping to HL")
+            },
+            Instruction::RST(i) => {
+                write!(f, "Calling RST and going to {:#06x}", i)
+            },
+            Instruction::CALL(code, i) => {
+                write!(f, "Calling function at {:#06x}, based on {}", i, code)
+            },
+            Instruction::RLC(code) => {
+                write!(f, "Rotating left at {}", code)
+            },
+            Instruction::RRC(code) => {
+                write!(f, "Rotating right at {}", code)
+            },
+            Instruction::RL(code) => {
+                write!(f, "Rotating left through the carry at {}", code)
+            },
+            Instruction::RR(code) => {
+                write!(f, "Rotating right through the carry at {}", code)
+            },
+            Instruction::SLA(code) => {
+                write!(f, "Shifting left at {}", code)
+            },
+            Instruction::SRA(code) => {
+                write!(f, "Shifting right arithmetically at {}", code)
+            },
+            Instruction::SRL(code) => {
+                write!(f, "Shifting right logically at {}", code)
+            },
+            Instruction::SWAP(code) => {
+                write!(f, "Swapping bytes at {}", code)
+            },
+            Instruction::BIT(b, code) => {
+                write!(f, "Checking bit {} at {}", b, code)
+            },
+            Instruction::RES(b, code) => {
+                write!(f, "Unsetting bit {} at {}", b, code)
+            },
+            Instruction::SET(b, code) => {
+                write!(f, "Setting bit {} at {}", b, code)
+            },
+        }
+    }
+
+}
+
 pub fn fetch(cpu: &mut Cpu) -> Instruction {
     let nibble = cpu.current_pc_byte();
-
-    println!("Current nibble {:#02x}", nibble);
+    
+    /*
+    clearscreen::clear().unwrap();
+    println!("Registers:");
+    println!("A:{: >4} F:{: >4}", cpu.registers.af.left, cpu.registers.af.right);
+    println!("B:{: >4} C:{: >4}", cpu.registers.bc.left, cpu.registers.bc.right);
+    println!("D:{: >4} E:{: >4}", cpu.registers.de.left, cpu.registers.de.right);
+    println!("H:{: >4} L:{: >4}", cpu.registers.hl.left, cpu.registers.hl.right);
+    println!("SP:{: >8}", cpu.registers.sp);
+    println!("PC:{: >8}", cpu.registers.pc);
+    println!("Opcode: {:#04x}", nibble);
+    */
 
     let mut prefixed = false;
 
@@ -101,8 +269,8 @@ pub fn fetch(cpu: &mut Cpu) -> Instruction {
         },
         0x02 => Instruction::LD8(RegCode::BC, RegCode::A),
         0x12 => Instruction::LD8(RegCode::DE, RegCode::A),
-        0x22 => todo!(),
-        0x32 => todo!(),
+        0x22 => Instruction::LDI(RegCode::HL, RegCode::A),
+        0x32 => Instruction::LDD(RegCode::HL, RegCode::A),
         0x03 => Instruction::INC16(RegCode::BC),
         0x13 => Instruction::INC16(RegCode::DE),
         0x23 => Instruction::INC16(RegCode::HL),
@@ -165,8 +333,8 @@ pub fn fetch(cpu: &mut Cpu) -> Instruction {
         0x39 => Instruction::ADD16(RegCode::SP),
         0x0A => Instruction::LD8(RegCode::A, RegCode::BC),
         0x1A => Instruction::LD8(RegCode::A, RegCode::DE),
-        0x2A => todo!(),
-        0x3A => todo!(),
+        0x2A => Instruction::LDI(RegCode::A, RegCode::HL),
+        0x3A => Instruction::LDD(RegCode::A, RegCode::HL),
         0x0B => Instruction::DEC16(RegCode::BC),
         0x1B => Instruction::DEC16(RegCode::DE),
         0x2B => Instruction::DEC16(RegCode::HL),
@@ -788,6 +956,12 @@ pub fn run(cpu: &mut Cpu, instruction: Instruction) {
         Instruction::LD16(target, source) => {
             cpu.load16(target, source);
         },
+        Instruction::LDD(target, source) => {
+            cpu.load_dec(target, source);
+        },
+        Instruction::LDI(target, source) => {
+            cpu.load_inc(target, source);
+        }
         Instruction::SUB(target) => {
             cpu.sub(target);
         },
@@ -810,6 +984,7 @@ pub fn run(cpu: &mut Cpu, instruction: Instruction) {
             cpu.rotate_left_carry_a();
         },
         Instruction::JR(condition, val) => {
+            println!("JR: {val}");
             cpu.jump_relative(condition, val);
         },
         Instruction::CP(target) => {
